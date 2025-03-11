@@ -6,35 +6,27 @@ export const AuthContext = createContext();
 
 const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
-  const [token, setToken] = useState(localStorage.getItem("token") || "");
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (token) {
-      fetchUserProfile();
-    }
-  }, [token]);
+    checkLoginStatus();
+  }, []);
 
-  const fetchUserProfile = async () => {
+  const checkLoginStatus = async () => {
     try {
       const res = await axios.get("http://localhost:5000/api/auth/profile", {
-        headers: { Authorization: `Bearer ${token}` },
+        withCredentials: true,
       });
       setUser(res.data);
     } catch (error) {
-      console.error("Error fetching user profile", error);
-      logout();
+      setUser(null);
     }
   };
 
   const login = async (email, password) => {
     try {
-      const res = await axios.post("http://localhost:5000/api/auth/login", {
-        email,
-        password,
-      });
-      localStorage.setItem("token", res.data.token);
-      setToken(res.data.token);
+      await axios.post("http://localhost:5000/api/auth/login", { email, password }, { withCredentials: true });
+      checkLoginStatus();
       navigate("/dashboard");
     } catch (error) {
       console.error("Login failed", error);
@@ -42,13 +34,9 @@ const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (name, email, password) => {
+  const register = async (name, email, password, phone) => {
     try {
-      await axios.post("http://localhost:5000/api/auth/register", {
-        name,
-        email,
-        password,
-      });
+      await axios.post("http://localhost:5000/api/auth/register", { name, email, password, phone });
       navigate("/login");
     } catch (error) {
       console.error("Registration failed", error);
@@ -56,15 +44,18 @@ const AuthProvider = ({ children }) => {
     }
   };
 
-  const logout = () => {
-    localStorage.removeItem("token");
-    setUser(null);
-    setToken("");
-    navigate("/login");
+  const logout = async () => {
+    try {
+      await axios.post("http://localhost:5000/api/auth/logout", {}, { withCredentials: true });
+      setUser(null);
+      navigate("/login");
+    } catch (error) {
+      console.error("Logout failed", error);
+    }
   };
 
   return (
-    <AuthContext.Provider value={{ user, token, login, register, logout }}>
+    <AuthContext.Provider value={{ user, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,33 +1,35 @@
 import bcrypt from "bcryptjs";
-import User from "../models/userModel.js"; // Ensure this path is correct
-
+import {useModel,userSchema} from "../models/userModel.js"; 
+import jwt from "jsonwebtoken";
 export const register = async (req, res) => {
   try {
     const { name, email, password } = req.body;
-
-    let user = await User.findOne({ email });
+      console.log(req.body)
+    let user = await useModel.findOne({ email });
     if (user) {
       return res.status(400).json({ message: "User already exists" });
     }
-
     const hashedPassword = await bcrypt.hash(password, 10);
-    user = await User.create({ name, email, password: hashedPassword });
-
+    let x=new useModel({ name, email, password: hashedPassword })
+    console.log(x)
+    await x.save()
+    let f=jwt.verify(x.generateToken(), process.env.JWT_SECRET)
+    console.log(f,"-------")
     res.status(201).json({
       message: "User registered successfully",
-      token: user.generateToken(),
+      token:userSchema.methods.generateToken() ,
       user
     });
   } catch (error) {
+    console.log(error)
     res.status(500).json({ message: "Server error", error });
   }
 };
-
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
 
-    const user = await User.findOne({ email });
+    const user = await useModel.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });
     }
@@ -46,7 +48,6 @@ export const login = async (req, res) => {
     res.status(500).json({ message: "Server error", error });
   }
 };
-
 export const getProfile = async (req, res) => {
   try {
     const user = req.user; // The `protect` middleware should attach `user` to `req`

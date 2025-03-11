@@ -1,10 +1,11 @@
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
-
+import dotenv from "dotenv";
+dotenv.config();
 const userSchema = new mongoose.Schema({
-  name: String,
-  email: { type: String, unique: true },
-  password: String,
+  name: {type: String,required: true},
+  email: { type: String, unique: true,required: true},
+  password: {type: String,required: true},
 });
 
 userSchema.methods.generateToken = function () {
@@ -13,4 +14,7 @@ userSchema.methods.generateToken = function () {
   });
 };
 
-export default mongoose.model("User", userSchema);
+console.log(userSchema.methods.generateToken(),"+++++++++++++++++")
+
+const useModel=mongoose.model("User", userSchema)
+export {useModel,userSchema}

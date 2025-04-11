@@ -3,45 +3,259 @@ import express from "express";
 import mongoose from "mongoose";
 import cors from "cors";
 import cookieParser from "cookie-parser";
+import { createServer } from "http";
+import { Server } from "socket.io";
+
 import authRoutes from "./routes/authRoutes.js";
+import chatRoutes from "./routes/chatRoutes.js";
+import groupRoutes from "./routes/groupRoutes.js";
+
+import Message from "./models/Message.js";
+import Chat from "./models/Chat.js";
+import Group from "./models/Group.js";
+import TypingStatus from "./models/TypingStatus.js";
+import { uploadToStorage } from "./utils/fileStorage.js"; // Storage function
 
 dotenv.config();
 const app = express();
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"],
+    credentials: true,
+  },
+});
 
-// Allow requests from frontend (Vite: 5173, React: 3000)
-const allowedOrigins = ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"];
-
+// Middleware
+app.use(express.json());
+app.use(cookieParser());
 app.use(
   cors({
-    origin: allowedOrigins,
-    credentials: true, // Allow cookies
+    origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"],
+    credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-// Manually set headers if needed
+// Debugging Middleware
 app.use((req, res, next) => {
-  const origin = allowedOrigins.includes(req.headers.origin) ? req.headers.origin : allowedOrigins[0];
-  res.header("Access-Control-Allow-Origin", origin);
-  res.header("Access-Control-Allow-Credentials", "true");
-  res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE");
-  res.header("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  if (req.method === "OPTIONS") {
-    return res.sendStatus(200);
-  }
+  console.log(`${req.method} ${req.url}`);
   next();
 });
 
-app.use(express.json());
-app.use(cookieParser());
+// Routes
+app.use("/api/auth", authRoutes);
+app.use("/api/chats", chatRoutes);
+app.use("/api/groups", groupRoutes);
 
+// Catch-All 404 Handler
+app.use((req, res) => {
+  console.log("404 - Route not found:", req.method, req.url);
+  res.status(404).json({ error: "Route not found" });
+});
+
+// Error Handler
+app.use((err, req, res, next) => {
+  console.error("Error:", err);
+  res.status(500).json({ error: err.message || "Internal server error" });
+});
+
+// MongoDB Connection
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(() => console.log("MongoDB Connected"))
-  .catch((err) => console.error("DB Connection Error:", err));
+  .then(() => console.log("✅ MongoDB Connected"))
+  .catch((err) => {
+    console.error("❌ MongoDB Connection Error:", err);
+    process.exit(1);
+  });
 
-app.use("/api/auth", authRoutes);
+// WebSocket Connection
+const onlineUsers = new Map();
 
+io.on("connection", (socket) => {
+  console.log("🔌 A user connected:", socket.id);
+
+  // ✅ Track Online Users
+  socket.on("userOnline", (userId) => {
+    onlineUsers.set(userId, socket.id);
+    console.log(`🟢 User ${userId} is online`);
+  });
+
+  // ✅ Join a Chat Room
+  socket.on("joinRoom", (chatId) => {
+    socket.join(chatId);
+    console.log(`📌 User joined chat room: ${chatId}`);
+  });
+
+  // ✅ Handle Typing Status
+  socket.on("typing", async ({ userId, chatId }) => {
+    try {
+      await TypingStatus.findOneAndUpdate(
+        { userId, chatId },
+        { isTyping: true, lastTypingAt: new Date() },
+        { upsert: true }
+      );
+      socket.to(chatId).emit("userTyping", { userId, chatId });
+    } catch (error) {
+      console.error("Error updating typing status:", error);
+    }
+  });
+
+  socket.on("stopTyping", async ({ userId, chatId }) => {
+    try {
+      await TypingStatus.findOneAndDelete({ userId, chatId });
+      socket.to(chatId).emit("userStoppedTyping", { userId, chatId });
+    } catch (error) {
+      console.error("Error updating typing status:", error);
+    }
+  });
+
+  // ✅ Send Message
+  socket.on("sendMessage", async ({ senderId, receiverId, content, chatId }) => {
+    try {
+      const newMessage = await Message.create({ chatId, sender: senderId, text: content, status: "sent" });
+
+      await Chat.findByIdAndUpdate(chatId, { $push: { messages: newMessage._id } });
+
+      io.to(chatId).emit("receiveMessage", {
+        _id: newMessage._id,
+        sender: senderId,
+        text: content,
+        status: "sent",
+        createdAt: newMessage.createdAt,
+      });
+
+      const receiverSocketId = onlineUsers.get(receiverId);
+      if (receiverSocketId) {
+        await Message.findByIdAndUpdate(newMessage._id, { status: "delivered" });
+
+        io.to(chatId).emit("messageStatusUpdated", {
+          messageId: newMessage._id,
+          status: "delivered",
+          userId: receiverId,
+        });
+      }
+    } catch (error) {
+      console.error("Error sending message:", error);
+    }
+  });
+
+  // ✅ File Sharing in Groups
+  socket.on("sendGroupFile", async ({ groupId, senderId, file }) => {
+    try {
+      const group = await Group.findById(groupId);
+      if (!group) return;
+
+      const member = group.members.find(m => m.user.toString() === senderId);
+      if (!member) return;
+
+      const fileUrl = await uploadToStorage(file);
+      const newMessage = await Message.create({
+        chatId: groupId,
+        sender: senderId,
+        messageType: "file",
+        fileUrl,
+        fileData: {
+          originalName: file.name,
+          size: file.size,
+          mimeType: file.type
+        }
+      });
+
+      await Group.findByIdAndUpdate(groupId, {
+        $push: { messages: newMessage._id }
+      });
+
+      io.to(`group:${groupId}`).emit("receiveGroupFile", {
+        _id: newMessage._id,
+        sender: senderId,
+        fileUrl,
+        fileData: newMessage.fileData,
+        createdAt: newMessage.createdAt
+      });
+    } catch (error) {
+      console.error("Error sending group file:", error);
+    }
+  });
+
+  // ✅ Voice Message in Group
+  socket.on("sendGroupVoiceMessage", async ({ groupId, senderId, audioBlob, duration }) => {
+    try {
+      const group = await Group.findById(groupId);
+      if (!group) return;
+
+      const member = group.members.find(m => m.user.toString() === senderId);
+      if (!member) return;
+
+      const audioUrl = await uploadToStorage(audioBlob);
+      const newMessage = await Message.create({
+        chatId: groupId,
+        sender: senderId,
+        messageType: "voice",
+        fileUrl: audioUrl,
+        voiceData: {
+          duration,
+          waveform: []
+        }
+      });
+
+      await Group.findByIdAndUpdate(groupId, {
+        $push: { messages: newMessage._id }
+      });
+
+      io.to(`group:${groupId}`).emit("receiveGroupVoiceMessage", {
+        _id: newMessage._id,
+        sender: senderId,
+        audioUrl,
+        voiceData: newMessage.voiceData,
+        createdAt: newMessage.createdAt
+      });
+    } catch (error) {
+      console.error("Error sending voice message:", error);
+    }
+  });
+
+  // ✅ Poll Updates in Groups
+  socket.on("pollVote", async ({ messageId, userId, optionIndex }) => {
+    try {
+      const message = await Message.findById(messageId);
+      if (!message || message.messageType !== "poll") return;
+
+      const option = message.pollData.options[optionIndex];
+      if (!option) return;
+
+      if (!message.pollData.allowMultipleVotes) {
+        message.pollData.options.forEach(opt => {
+          opt.votes = opt.votes.filter(vote => vote.user.toString() !== userId);
+        });
+      }
+
+      option.votes.push({ user: userId });
+      await message.save();
+
+      io.to(`group:${message.chatId}`).emit("pollUpdated", {
+        messageId,
+        pollData: message.pollData
+      });
+    } catch (error) {
+      console.error("Error updating poll:", error);
+    }
+  });
+
+  // ✅ Handle User Disconnect
+  socket.on("disconnect", () => {
+    for (let [userId, socketId] of onlineUsers.entries()) {
+      if (socketId === socket.id) {
+        onlineUsers.delete(userId);
+        console.log(`🔴 User ${userId} went offline`);
+        break;
+      }
+    }
+    console.log("🔌 A user disconnected:", socket.id);
+  });
+});
+
+// Start Server
 const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));

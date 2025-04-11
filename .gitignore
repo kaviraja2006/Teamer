@@ -1,0 +1,8 @@
+.qodo
+# Ignore Ollama models and cache
+~/.ollama/
+~/.ollama/models/
+~/.ollama/logs/
+
+# Ignore local AI-generated files (if any)
+*.ollama

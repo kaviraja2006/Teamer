@@ -5,15 +5,17 @@
     "dev": "nodemon src/server.js"
   },
   "dependencies": {
+    "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
-    "mongoose": "^8.11.0",
+    "mongoose": "^7.0.0",
     "razorpay": "^2.9.6",
     "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "stripe": "^17.7.0"
   },
   "devDependencies": {

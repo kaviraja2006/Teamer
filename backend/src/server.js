@@ -8,19 +8,19 @@ import authRoutes from "./routes/authRoutes.js";
 dotenv.config();
 const app = express();
 
-// Allow requests from frontend (Vite: 5173, React: 3000)
+
 const allowedOrigins = ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"];
 
 app.use(
   cors({
     origin: allowedOrigins,
-    credentials: true, // Allow cookies
+    credentials: true, 
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-// Manually set headers if needed
+
 app.use((req, res, next) => {
   const origin = allowedOrigins.includes(req.headers.origin) ? req.headers.origin : allowedOrigins[0];
   res.header("Access-Control-Allow-Origin", origin);

@@ -4,27 +4,64 @@ import jwt from "jsonwebtoken";
 
 export const register = async (req, res) => {
   try {
-    const { name, email, password, phone } = req.body;
-    let user = await User.findOne({ $or: [{ email }, { phone }] });
+    const { username, name, email, password } = req.body;
+    
+
+    const normalizedEmail = email.trim().toLowerCase();
+    
+
+    let user = await User.findOne({ username });
     if (user) {
-      return res.status(400).json({ message: "User already exists" });
+      return res.status(400).json({ 
+        message: "Username already exists. Please choose a different username." 
+      });
     }
+
+
+    user = await User.findOne({ 
+      email: { $regex: `^${normalizedEmail}$`, $options: 'i' } 
+    });
+    if (user) {
+      return res.status(400).json({ 
+        message: "User already exists with this email. Please use a different email address." 
+      });
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
-    user = new User({ name, email, password: hashedPassword, phone });
+    user = new User({ 
+      username,
+      name: name.trim(),
+      email: normalizedEmail,
+      password: hashedPassword 
+    });
+
     await user.save();
 
     const token = user.generateToken();
-    res.cookie("token", token, { httpOnly: true, secure: true, sameSite: "Strict" });
+    res.cookie("token", token, { 
+      httpOnly: true, 
+      secure: true, 
+      sameSite: "Strict" 
+    });
 
-    res.status(201).json({ message: "User registered successfully", user });
+    res.status(201).json({ 
+      message: "User registered successfully", 
+      user 
+    });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error });
+    res.status(500).json({ 
+      message: "Server error", 
+      error 
+    });
   }
 };
+
+
 
 export const login = async (req, res) => {
   try {
     const { email, password } = req.body;
+
     const user = await User.findOne({ email });
     if (!user) {
       return res.status(400).json({ message: "Invalid credentials" });

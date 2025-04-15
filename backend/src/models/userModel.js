@@ -1,13 +1,15 @@
+
 import mongoose from "mongoose";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+
 dotenv.config();
 
 const userSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  email: { type: String, unique: true, required: true },
-  password: { type: String, required: true },
-  phone: { type: String, unique: true, required: true }, // Added unique phone number
+  username: { type: String, required: true, unique: true }, 
+  name: { type: String },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true }
 });
 
 userSchema.methods.generateToken = function () {

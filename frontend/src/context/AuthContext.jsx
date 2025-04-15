@@ -4,6 +4,7 @@ import axios from "axios";
 
 export const AuthContext = createContext();
 
+
 const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const navigate = useNavigate();
@@ -25,7 +26,9 @@ const AuthProvider = ({ children }) => {
 
   const login = async (email, password) => {
     try {
-      await axios.post("http://localhost:5000/api/auth/login", { email, password }, { withCredentials: true });
+      await axios.post("http://localhost:5000/api/auth/login", { email, password }, {
+        withCredentials: true
+      });
       checkLoginStatus();
       navigate("/dashboard");
     } catch (error) {
@@ -34,9 +37,9 @@ const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async (name, email, password, phone) => {
+  const register = async (name, email, password, username) => {
     try {
-      await axios.post("http://localhost:5000/api/auth/register", { name, email, password, phone });
+      await axios.post("http://localhost:5000/api/auth/register", { name, email, password, username });
       navigate("/login");
     } catch (error) {
       console.error("Registration failed", error);
@@ -46,7 +49,9 @@ const AuthProvider = ({ children }) => {
 
   const logout = async () => {
     try {
-      await axios.post("http://localhost:5000/api/auth/logout", {}, { withCredentials: true });
+      await axios.post("http://localhost:5000/api/auth/logout", {}, {
+        withCredentials: true
+      });
       setUser(null);
       navigate("/login");
     } catch (error) {
@@ -60,5 +65,4 @@ const AuthProvider = ({ children }) => {
     </AuthContext.Provider>
   );
 };
-
 export default AuthProvider;

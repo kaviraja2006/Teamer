@@ -3,7 +3,7 @@ import Message from "../models/Message.js";
 import TypingStatus from "../models/TypingStatus.js";
 import mongoose from "mongoose";
 
-// ✅ Create or get an existing chat
+
 export const getOrCreateChat = async (req, res) => {
   const { user1, user2 } = req.body;
   try {
@@ -23,7 +23,7 @@ export const getOrCreateChat = async (req, res) => {
   }
 };
 
-// ✅ Send a message
+
 export const sendMessage = async (req, res) => {
   const { chatId, sender, text } = req.body;
   
@@ -61,7 +61,7 @@ export const sendMessage = async (req, res) => {
   }
 };
 
-// ✅ Get messages
+
 export const getMessages = async (req, res) => {
   const { chatId } = req.params;
   
@@ -84,7 +84,7 @@ export const getMessages = async (req, res) => {
   }
 };
 
-// ✅ Edit a message
+
 export const editMessage = async (req, res) => {
   const { messageId } = req.params;
   const { text, isEdited } = req.body;
@@ -116,7 +116,7 @@ export const editMessage = async (req, res) => {
   }
 };
 
-// ✅ Delete a message
+
 export const deleteMessage = async (req, res) => {
   const { messageId } = req.params;
 
@@ -138,7 +138,7 @@ export const deleteMessage = async (req, res) => {
   }
 };
 
-// ✅ React to a message
+
 export const reactToMessage = async (req, res) => {
   const { messageId } = req.params;
   const { user, emoji } = req.body;
@@ -167,7 +167,7 @@ export const reactToMessage = async (req, res) => {
   }
 };
 
-// ✅ Update message status
+
 export const updateMessageStatus = async (req, res) => {
   const { messageId } = req.params;
   const { userId, status } = req.body;
@@ -184,7 +184,7 @@ export const updateMessageStatus = async (req, res) => {
   }
 };
 
-// ✅ Get typing users in a chat
+
 export const getTypingUsers = async (req, res) => {
   const { chatId } = req.params;
   
@@ -201,7 +201,7 @@ export const getTypingUsers = async (req, res) => {
   }
 };
 
-// ✅ Update typing status
+
 export const updateTypingStatus = async (req, res) => {
   const { chatId } = req.params;
   const { userId, isTyping } = req.body;

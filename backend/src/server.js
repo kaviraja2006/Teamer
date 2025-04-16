@@ -18,50 +18,42 @@ import { uploadToStorage } from "./utils/fileStorage.js"; // Storage function
 
 dotenv.config();
 const app = express();
-const server = createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"],
-    credentials: true,
-  },
-});
 
-// Middleware
-app.use(express.json());
-app.use(cookieParser());
+
+const allowedOrigins = ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"];
+
 app.use(
   cors({
-    origin: ["http://localhost:5173", "http://localhost:5174", "http://localhost:3000"],
-    credentials: true,
+    origin: allowedOrigins,
+    credentials: true, 
     methods: ["GET", "POST", "PUT", "DELETE"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
 );
 
-// Debugging Middleware
+
 app.use((req, res, next) => {
   console.log(`${req.method} ${req.url}`);
   next();
 });
 
-// Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/chats", chatRoutes);
 app.use("/api/groups", groupRoutes);
 
-// Catch-All 404 Handler
+
 app.use((req, res) => {
   console.log("404 - Route not found:", req.method, req.url);
   res.status(404).json({ error: "Route not found" });
 });
 
-// Error Handler
+
 app.use((err, req, res, next) => {
   console.error("Error:", err);
   res.status(500).json({ error: err.message || "Internal server error" });
 });
 
-// MongoDB Connection
+
 mongoose
   .connect(process.env.MONGO_URI)
   .then(() => console.log("✅ MongoDB Connected"))
@@ -70,25 +62,25 @@ mongoose
     process.exit(1);
   });
 
-// WebSocket Connection
+
 const onlineUsers = new Map();
 
 io.on("connection", (socket) => {
   console.log("🔌 A user connected:", socket.id);
 
-  // ✅ Track Online Users
+ 
   socket.on("userOnline", (userId) => {
     onlineUsers.set(userId, socket.id);
     console.log(`🟢 User ${userId} is online`);
   });
 
-  // ✅ Join a Chat Room
+
   socket.on("joinRoom", (chatId) => {
     socket.join(chatId);
     console.log(`📌 User joined chat room: ${chatId}`);
   });
 
-  // ✅ Handle Typing Status
+ 
   socket.on("typing", async ({ userId, chatId }) => {
     try {
       await TypingStatus.findOneAndUpdate(
@@ -111,7 +103,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ✅ Send Message
+  
   socket.on("sendMessage", async ({ senderId, receiverId, content, chatId }) => {
     try {
       const newMessage = await Message.create({ chatId, sender: senderId, text: content, status: "sent" });
@@ -141,7 +133,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ✅ File Sharing in Groups
+ 
   socket.on("sendGroupFile", async ({ groupId, senderId, file }) => {
     try {
       const group = await Group.findById(groupId);
@@ -179,7 +171,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // ✅ Voice Message in Group
+ 
   socket.on("sendGroupVoiceMessage", async ({ groupId, senderId, audioBlob, duration }) => {
     try {
       const group = await Group.findById(groupId);
@@ -258,4 +250,4 @@ io.on("connection", (socket) => {
 
 // Start Server
 const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
